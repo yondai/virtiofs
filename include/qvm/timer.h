@@ -1,9 +1,9 @@
 #ifndef QEMU_TIMER_H
 #define QEMU_TIMER_H
 
-#include "qemu/bitops.h"
-#include "qemu/notify.h"
-#include "qemu/host-utils.h"
+#include "qvm/bitops.h"
+#include "qvm/notify.h"
+#include "qvm/host-utils.h"
 
 #define NANOSECONDS_PER_SECOND 1000000000LL
 
@@ -527,7 +527,8 @@ static inline QEMUTimer *timer_new_full(QEMUTimerListGroup *timer_list_group,
                                         int scale, int attributes,
                                         QEMUTimerCB *cb, void *opaque)
 {
-    QEMUTimer *ts = g_malloc0(sizeof(QEMUTimer));
+    // QEMUTimer *ts = g_malloc0(sizeof(QEMUTimer));
+    QEMUTimer *ts = malloc0(sizeof(QEMUTimer));
     timer_init_full(ts, timer_list_group, type, scale, attributes, cb, opaque);
     return ts;
 }
@@ -763,7 +764,7 @@ int qemu_timeout_ns_to_ms(int64_t ns);
  *
  * Returns: number of fds ready
  */
-int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout);
+// int qemu_poll_ns(GPollFD *fds, guint nfds, int64_t timeout);
 
 /**
  * qemu_soonest_timeout:

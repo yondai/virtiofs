@@ -28,17 +28,17 @@
 #include <sys/mman.h>
 #include "qemu/compiler.h"
 
-#if defined(__linux__)
-#include <sys/syscall.h>
+// #if defined(__linux__)
+// #include <sys/syscall.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
-#include <linux/vhost.h>
+// #include <linux/vhost.h>
 
 #ifdef __NR_userfaultfd
 #include <linux/userfaultfd.h>
 #endif
 
-#endif
+// #endif
 
 #include "qemu/atomic.h"
 #include "qemu/osdep.h"

@@ -9,7 +9,7 @@
  * See the file COPYING.LIB
  */
 
-#include "qemu/osdep.h"
+#include "qvm/osdep.h"
 #include "fuse_i.h"
 #include "standard-headers/linux/fuse.h"
 #include "fuse_misc.h"
@@ -18,7 +18,7 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <glib.h>
+// #include <glib.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>

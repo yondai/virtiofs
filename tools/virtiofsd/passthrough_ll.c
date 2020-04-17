@@ -35,16 +35,17 @@
  * \include passthrough_ll.c
  */
 
-#include "qemu/osdep.h"
-#include "qemu/timer.h"
+#include "qvm/osdep.h"
+#include "qvm/timer.h"
 #include "fuse_virtio.h"
 #include "fuse_log.h"
 #include "fuse_lowlevel.h"
 #include <assert.h>
-#include <cap-ng.h>
+// FIXME:
+// #include <cap-ng.h>
 #include <dirent.h>
 #include <errno.h>
-#include <glib.h>
+#include "standard-headers/glib_types.h"
 #include <inttypes.h>
 #include <limits.h>
 #include <pthread.h>
@@ -57,20 +58,22 @@
 #include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
-#include <sys/prctl.h>
+// #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
-#include <sys/syscall.h>
+// #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
-#include <sys/xattr.h>
+// #include <sys/xattr.h>
 #include <syslog.h>
 #include <unistd.h>
 
 #include "ireg.h"
 #include "passthrough_helpers.h"
-#include "seccomp.h"
+// #include "seccomp.h"
+
+static const int DT_DIR = 4;
 
 /* Keep track of inode posix locks for each owner. */
 struct lo_inode_plock {
@@ -235,117 +238,118 @@ static struct lo_data *lo_data(fuse_req_t req)
  * hadn't previously been loaded.
  * returns 0 on success
  */
-static int load_capng(void)
-{
-    if (!cap_loaded) {
-        pthread_mutex_lock(&cap.mutex);
-        capng_restore_state(&cap.saved);
-        /*
-         * restore_state free's the saved copy
-         * so make another.
-         */
-        cap.saved = capng_save_state();
-        if (!cap.saved) {
-            pthread_mutex_unlock(&cap.mutex);
-            fuse_log(FUSE_LOG_ERR, "capng_save_state (thread)\n");
-            return -EINVAL;
-        }
-        pthread_mutex_unlock(&cap.mutex);
+// static int load_capng(void)
+// {
+//     if (!cap_loaded) {
+//         pthread_mutex_lock(&cap.mutex);
+//         capng_restore_state(&cap.saved);
+//         /*
+//          * restore_state free's the saved copy
+//          * so make another.
+//          */
+//         cap.saved = capng_save_state();
+//         if (!cap.saved) {
+//             pthread_mutex_unlock(&cap.mutex);
+//             fuse_log(FUSE_LOG_ERR, "capng_save_state (thread)\n");
+//             return -EINVAL;
+//         }
+//         pthread_mutex_unlock(&cap.mutex);
 
-        /*
-         * We want to use the loaded state for our pid,
-         * not the original
-         */
-        capng_setpid(syscall(SYS_gettid));
-        cap_loaded = true;
-    }
-    return 0;
-}
+//         /*
+//          * We want to use the loaded state for our pid,
+//          * not the original
+//          */
+//         // capng_setpid(syscall(SYS_gettid));
+//         capng_setpid(gettid());
+//         cap_loaded = true;
+//     }
+//     return 0;
+// }
 
 /*
  * Helpers for dropping and regaining effective capabilities. Returns 0
  * on success, error otherwise
  */
-static int drop_effective_cap(const char *cap_name, bool *cap_dropped)
-{
-    int cap, ret;
+// static int drop_effective_cap(const char *cap_name, bool *cap_dropped)
+// {
+//     int cap, ret;
 
-    cap = capng_name_to_capability(cap_name);
-    if (cap < 0) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "capng_name_to_capability(%s) failed:%s\n",
-                 cap_name, strerror(errno));
-        goto out;
-    }
+//     cap = capng_name_to_capability(cap_name);
+//     if (cap < 0) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "capng_name_to_capability(%s) failed:%s\n",
+//                  cap_name, strerror(errno));
+//         goto out;
+//     }
 
-    if (load_capng()) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "load_capng() failed\n");
-        goto out;
-    }
+//     if (load_capng()) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "load_capng() failed\n");
+//         goto out;
+//     }
 
-    /* We dont have this capability in effective set already. */
-    if (!capng_have_capability(CAPNG_EFFECTIVE, cap)) {
-        ret = 0;
-        goto out;
-    }
+//     /* We dont have this capability in effective set already. */
+//     if (!capng_have_capability(CAPNG_EFFECTIVE, cap)) {
+//         ret = 0;
+//         goto out;
+//     }
 
-    if (capng_update(CAPNG_DROP, CAPNG_EFFECTIVE, cap)) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "capng_update(DROP,) failed\n");
-        goto out;
-    }
+//     if (capng_update(CAPNG_DROP, CAPNG_EFFECTIVE, cap)) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "capng_update(DROP,) failed\n");
+//         goto out;
+//     }
 
-    if (capng_apply(CAPNG_SELECT_CAPS)) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "drop:capng_apply() failed\n");
-        goto out;
-    }
+//     if (capng_apply(CAPNG_SELECT_CAPS)) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "drop:capng_apply() failed\n");
+//         goto out;
+//     }
 
-    ret = 0;
-    if (cap_dropped) {
-        *cap_dropped = true;
-    }
+//     ret = 0;
+//     if (cap_dropped) {
+//         *cap_dropped = true;
+//     }
 
-out:
-    return ret;
-}
+// out:
+//     return ret;
+// }
 
-static int gain_effective_cap(const char *cap_name)
-{
-    int cap;
-    int ret = 0;
+// static int gain_effective_cap(const char *cap_name)
+// {
+//     int cap;
+//     int ret = 0;
 
-    cap = capng_name_to_capability(cap_name);
-    if (cap < 0) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "capng_name_to_capability(%s) failed:%s\n",
-                 cap_name, strerror(errno));
-        goto out;
-    }
+//     cap = capng_name_to_capability(cap_name);
+//     if (cap < 0) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "capng_name_to_capability(%s) failed:%s\n",
+//                  cap_name, strerror(errno));
+//         goto out;
+//     }
 
-    if (load_capng()) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "load_capng() failed\n");
-        goto out;
-    }
+//     if (load_capng()) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "load_capng() failed\n");
+//         goto out;
+//     }
 
-    if (capng_update(CAPNG_ADD, CAPNG_EFFECTIVE, cap)) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "capng_update(ADD,) failed\n");
-        goto out;
-    }
+//     if (capng_update(CAPNG_ADD, CAPNG_EFFECTIVE, cap)) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "capng_update(ADD,) failed\n");
+//         goto out;
+//     }
 
-    if (capng_apply(CAPNG_SELECT_CAPS)) {
-        ret = errno;
-        fuse_log(FUSE_LOG_ERR, "gain:capng_apply() failed\n");
-        goto out;
-    }
-    ret = 0;
+//     if (capng_apply(CAPNG_SELECT_CAPS)) {
+//         ret = errno;
+//         fuse_log(FUSE_LOG_ERR, "gain:capng_apply() failed\n");
+//         goto out;
+//     }
+//     ret = 0;
 
-out:
-    return ret;
-}
+// out:
+//     return ret;
+// }
 
 static void lo_map_init(struct lo_map *map)
 {
@@ -623,7 +627,8 @@ static void lo_getattr(fuse_req_t req, fuse_ino_t ino,
     (void)fi;
 
     res =
-        fstatat(lo_fd(req, ino), "", &buf, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+        // fstatat(lo_fd(req, ino), "", &buf, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+        fstatat(lo_fd(req, ino), "", &buf, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
     if (res == -1) {
         return (void)fuse_reply_err(req, errno);
     }
@@ -735,7 +740,8 @@ static int utimensat_empty(struct lo_data *lo, struct lo_inode *inode,
     char path[PATH_MAX];
 
     if (S_ISLNK(inode->filetype)) {
-        res = utimensat(inode->fd, "", tv, AT_EMPTY_PATH);
+        // res = utimensat(inode->fd, "", tv, AT_EMPTY_PATH);
+        res = utimensat(inode->fd, "", tv, AT_EACCESS);
         if (res == -1 && errno == EINVAL) {
             /* Sorry, no race free way to set times on symlink. */
             if (lo->norace) {
@@ -816,7 +822,8 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
         uid_t uid = (valid & FUSE_SET_ATTR_UID) ? attr->st_uid : (uid_t)-1;
         gid_t gid = (valid & FUSE_SET_ATTR_GID) ? attr->st_gid : (gid_t)-1;
 
-        res = fchownat(ifd, "", uid, gid, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+        // res = fchownat(ifd, "", uid, gid, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+        res = fchownat(ifd, "", uid, gid, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
         if (res == -1) {
             goto out_err;
         }
@@ -1017,12 +1024,14 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
         name = ".";
     }
 
-    newfd = openat(dir->fd, name, O_PATH | O_NOFOLLOW);
+    // newfd = openat(dir->fd, name, O_PATH | O_NOFOLLOW);
+    newfd = openat(dir->fd, name, O_DIRFD | O_NOFOLLOW);
     if (newfd == -1) {
         goto out_err;
     }
 
-    res = fstatat(newfd, "", &e->attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    // res = fstatat(newfd, "", &e->attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    res = fstatat(newfd, "", &e->attr, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
     if (res == -1) {
         goto out_err;
     }
@@ -1050,8 +1059,9 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
         inode->key.ino = e->attr.st_ino;
         inode->key.dev = e->attr.st_dev;
         pthread_mutex_init(&inode->plock_mutex, NULL);
-        inode->posix_locks = g_hash_table_new_full(
-            g_direct_hash, g_direct_equal, NULL, posix_locks_value_destroy);
+        // FIXME:
+        // inode->posix_locks = g_hash_table_new_full(
+        //     g_direct_hash, g_direct_equal, NULL, posix_locks_value_destroy);
 
         get_shared(lo, inode);
 
@@ -1062,7 +1072,8 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
     }
 
     e->initial_version = get_version(lo, inode);
-    res = fstatat(inode->fd, "", &e->attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    // res = fstatat(inode->fd, "", &e->attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    res = fstatat(inode->fd, "", &e->attr, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
     if (res == -1) {
         saverr = errno;
         unref_inode_lolocked(lo, inode, 1);
@@ -1122,17 +1133,17 @@ static void lo_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
  * provide setres*id32 variants that allow 2^32.
  * Others just let setres*id do 2^32 anyway.
  */
-#ifdef SYS_setresgid32
-#define OURSYS_setresgid SYS_setresgid32
-#else
-#define OURSYS_setresgid SYS_setresgid
-#endif
+// #ifdef SYS_setresgid32
+// #define OURSYS_setresgid SYS_setresgid32
+// #else
+// #define OURSYS_setresgid SYS_setresgid
+// #endif
 
-#ifdef SYS_setresuid32
-#define OURSYS_setresuid SYS_setresuid32
-#else
-#define OURSYS_setresuid SYS_setresuid
-#endif
+// #ifdef SYS_setresuid32
+// #define OURSYS_setresuid SYS_setresuid32
+// #else
+// #define OURSYS_setresuid SYS_setresuid
+// #endif
 
 /*
  * Change to uid/gid of caller so that file is created with
@@ -1146,16 +1157,19 @@ static int lo_change_cred(fuse_req_t req, struct lo_cred *old)
     old->euid = geteuid();
     old->egid = getegid();
 
-    res = syscall(OURSYS_setresgid, -1, fuse_req_ctx(req)->gid, -1);
+    // res = syscall(OURSYS_setresgid, -1, fuse_req_ctx(req)->gid, -1);
+    res = setegid(fuse_req_ctx(req)->gid);
     if (res == -1) {
         return errno;
     }
 
-    res = syscall(OURSYS_setresuid, -1, fuse_req_ctx(req)->uid, -1);
+    // res = syscall(OURSYS_setresuid, -1, fuse_req_ctx(req)->uid, -1);
+    res = seteuid(fuse_req_ctx(req)->uid);
     if (res == -1) {
         int errno_save = errno;
 
-        syscall(OURSYS_setresgid, -1, old->egid, -1);
+        // syscall(OURSYS_setresgid, -1, old->egid, -1);
+        res = setegid(old->egid);
         return errno_save;
     }
 
@@ -1167,13 +1181,15 @@ static void lo_restore_cred(struct lo_cred *old)
 {
     int res;
 
-    res = syscall(OURSYS_setresuid, -1, old->euid, -1);
+    // res = syscall(OURSYS_setresuid, -1, old->euid, -1);
+    res = seteuid(old->euid);
     if (res == -1) {
         fuse_log(FUSE_LOG_ERR, "seteuid(%u): %m\n", old->euid);
         exit(1);
     }
 
-    res = syscall(OURSYS_setresgid, -1, old->egid, -1);
+    // res = syscall(OURSYS_setresgid, -1, old->egid, -1);
+    res = setegid(old->egid);
     if (res == -1) {
         fuse_log(FUSE_LOG_ERR, "setegid(%u): %m\n", old->egid);
         exit(1);
@@ -1262,7 +1278,8 @@ static int linkat_empty_nofollow(struct lo_data *lo, struct lo_inode *inode,
     char path[PATH_MAX];
 
     if (S_ISLNK(inode->filetype)) {
-        res = linkat(inode->fd, "", dfd, name, AT_EMPTY_PATH);
+        // res = linkat(inode->fd, "", dfd, name, AT_EMPTY_PATH);
+        res = linkat(inode->fd, "", dfd, name, AT_EACCESS);
         if (res == -1 && (errno == ENOENT || errno == EINVAL)) {
             /* Sorry, no race free way to hard-link a symlink. */
             if (lo->norace) {
@@ -1320,7 +1337,8 @@ static void lo_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
         goto out_err;
     }
 
-    res = fstatat(inode->fd, "", &e.attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    // res = fstatat(inode->fd, "", &e.attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    res = fstatat(inode->fd, "", &e.attr, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
     if (res == -1) {
         goto out_err;
     }
@@ -1354,8 +1372,10 @@ static struct lo_inode *lookup_name(fuse_req_t req, fuse_ino_t parent,
     int res;
     struct stat attr;
 
+    // res = fstatat(lo_fd(req, parent), name, &attr,
+    //               AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
     res = fstatat(lo_fd(req, parent), name, &attr,
-                  AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+                  AT_EACCESS | AT_SYMLINK_NOFOLLOW);
     if (res == -1) {
         return NULL;
     }
@@ -1598,6 +1618,8 @@ struct lo_dirp {
     gint refcount;
     DIR *dp;
     struct dirent *entry;
+    // QNX specific
+    struct dirent_extra *entry_extra;
     off_t offset;
 };
 
@@ -1742,13 +1764,15 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
                 }
             }
         }
-        nextoff = d->entry->d_off;
+        // nextoff = d->entry->d_off;
+        nextoff = d->entry->d_offset;
         name = d->entry->d_name;
 
         fuse_ino_t entry_ino = 0;
         struct fuse_entry_param e = (struct fuse_entry_param){
             .attr.st_ino = d->entry->d_ino,
-            .attr.st_mode = d->entry->d_type << 12,
+            // .attr.st_mode = d->entry->d_type << 12,
+            .attr.st_mode = d->entry_extra->d_type << 12,
         };
 
         /* Hide root's parent directory */
@@ -1869,7 +1893,8 @@ static void update_open_flags(int writeback, struct fuse_file_info *fi)
      * cache on host as well. If somebody needs that behavior, it
      * probably should be a configuration knob in daemon.
      */
-    fi->flags &= ~O_DIRECT;
+    // FIXME: does QNX support direct disk access?
+    // fi->flags &= ~O_DIRECT;
 }
 
 static void lo_create(fuse_req_t req, fuse_ino_t parent, const char *name,
@@ -2011,7 +2036,8 @@ static void lo_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
         goto out;
     }
 
-    ret = fcntl(plock->fd, F_OFD_GETLK, lock);
+    // ret = fcntl(plock->fd, F_OFD_GETLK, lock);
+    ret = fcntl(plock->fd, F_GETFL, lock);
     if (ret == -1) {
         saverr = errno;
     }
@@ -2064,7 +2090,8 @@ static void lo_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
 
     /* TODO: Is it alright to modify flock? */
     lock->l_pid = 0;
-    ret = fcntl(plock->fd, F_OFD_SETLK, lock);
+    // ret = fcntl(plock->fd, F_OFD_SETLK, lock);
+    ret = fcntl(plock->fd, F_SETFL, lock);
     if (ret == -1) {
         saverr = errno;
     }
@@ -2824,77 +2851,77 @@ static void print_capabilities(void)
 /*
  * Move to a new mount, net, and pid namespaces to isolate this process.
  */
-static void setup_namespaces(struct lo_data *lo, struct fuse_session *se)
-{
-    pid_t child;
+// static void setup_namespaces(struct lo_data *lo, struct fuse_session *se)
+// {
+//     pid_t child;
 
-    /*
-     * Create a new pid namespace for *child* processes.  We'll have to
-     * fork in order to enter the new pid namespace.  A new mount namespace
-     * is also needed so that we can remount /proc for the new pid
-     * namespace.
-     *
-     * Our UNIX domain sockets have been created.  Now we can move to
-     * an empty network namespace to prevent TCP/IP and other network
-     * activity in case this process is compromised.
-     */
-    if (unshare(CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWNET) != 0) {
-        fuse_log(FUSE_LOG_ERR, "unshare(CLONE_NEWPID | CLONE_NEWNS): %m\n");
-        exit(1);
-    }
+//     /*
+//      * Create a new pid namespace for *child* processes.  We'll have to
+//      * fork in order to enter the new pid namespace.  A new mount namespace
+//      * is also needed so that we can remount /proc for the new pid
+//      * namespace.
+//      *
+//      * Our UNIX domain sockets have been created.  Now we can move to
+//      * an empty network namespace to prevent TCP/IP and other network
+//      * activity in case this process is compromised.
+//      */
+//     if (unshare(CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWNET) != 0) {
+//         fuse_log(FUSE_LOG_ERR, "unshare(CLONE_NEWPID | CLONE_NEWNS): %m\n");
+//         exit(1);
+//     }
 
-    child = fork();
-    if (child < 0) {
-        fuse_log(FUSE_LOG_ERR, "fork() failed: %m\n");
-        exit(1);
-    }
-    if (child > 0) {
-        pid_t waited;
-        int wstatus;
+//     child = fork();
+//     if (child < 0) {
+//         fuse_log(FUSE_LOG_ERR, "fork() failed: %m\n");
+//         exit(1);
+//     }
+//     if (child > 0) {
+//         pid_t waited;
+//         int wstatus;
 
-        /* The parent waits for the child */
-        do {
-            waited = waitpid(child, &wstatus, 0);
-        } while (waited < 0 && errno == EINTR && !se->exited);
+//         /* The parent waits for the child */
+//         do {
+//             waited = waitpid(child, &wstatus, 0);
+//         } while (waited < 0 && errno == EINTR && !se->exited);
 
-        /* We were terminated by a signal, see fuse_signals.c */
-        if (se->exited) {
-            exit(0);
-        }
+//         /* We were terminated by a signal, see fuse_signals.c */
+//         if (se->exited) {
+//             exit(0);
+//         }
 
-        if (WIFEXITED(wstatus)) {
-            exit(WEXITSTATUS(wstatus));
-        }
+//         if (WIFEXITED(wstatus)) {
+//             exit(WEXITSTATUS(wstatus));
+//         }
 
-        exit(1);
-    }
+//         exit(1);
+//     }
 
-    /* Send us SIGTERM when the parent thread terminates, see prctl(2) */
-    prctl(PR_SET_PDEATHSIG, SIGTERM);
+//     /* Send us SIGTERM when the parent thread terminates, see prctl(2) */
+//     prctl(PR_SET_PDEATHSIG, SIGTERM);
 
-    /*
-     * If the mounts have shared propagation then we want to opt out so our
-     * mount changes don't affect the parent mount namespace.
-     */
-    if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) < 0) {
-        fuse_log(FUSE_LOG_ERR, "mount(/, MS_REC|MS_SLAVE): %m\n");
-        exit(1);
-    }
+//     /*
+//      * If the mounts have shared propagation then we want to opt out so our
+//      * mount changes don't affect the parent mount namespace.
+//      */
+//     if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) < 0) {
+//         fuse_log(FUSE_LOG_ERR, "mount(/, MS_REC|MS_SLAVE): %m\n");
+//         exit(1);
+//     }
 
-    /* The child must remount /proc to use the new pid namespace */
-    if (mount("proc", "/proc", "proc",
-              MS_NODEV | MS_NOEXEC | MS_NOSUID | MS_RELATIME, NULL) < 0) {
-        fuse_log(FUSE_LOG_ERR, "mount(/proc): %m\n");
-        exit(1);
-    }
+//     /* The child must remount /proc to use the new pid namespace */
+//     if (mount("proc", "/proc", "proc",
+//               MS_NODEV | MS_NOEXEC | MS_NOSUID | MS_RELATIME, NULL) < 0) {
+//         fuse_log(FUSE_LOG_ERR, "mount(/proc): %m\n");
+//         exit(1);
+//     }
 
-    /* Now we can get our /proc/self/fd directory file descriptor */
-    lo->proc_self_fd = open("/proc/self/fd", O_PATH);
-    if (lo->proc_self_fd == -1) {
-        fuse_log(FUSE_LOG_ERR, "open(/proc/self/fd, O_PATH): %m\n");
-        exit(1);
-    }
-}
+//     /* Now we can get our /proc/self/fd directory file descriptor */
+//     lo->proc_self_fd = open("/proc/self/fd", O_PATH);
+//     if (lo->proc_self_fd == -1) {
+//         fuse_log(FUSE_LOG_ERR, "open(/proc/self/fd, O_PATH): %m\n");
+//         exit(1);
+//     }
+// }
 
 /*
  * Capture the capability state, we'll need to restore this for individual
@@ -2934,7 +2961,8 @@ static void setup_mounts(const char *source)
     int oldroot;
     int newroot;
 
-    if (mount(source, source, NULL, MS_BIND, NULL) < 0) {
+    // if (mount(source, source, NULL, MS_BIND, NULL) < 0) {
+    if (mount(source, source, NULL, 0, NULL, 0) < 0) {
         fuse_log(FUSE_LOG_ERR, "mount(%s, %s, MS_BIND): %m\n", source, source);
         exit(1);
     }
@@ -2957,7 +2985,9 @@ static void setup_mounts(const char *source)
         exit(1);
     }
 
-    if (syscall(__NR_pivot_root, ".", ".") < 0) {
+    // FIXME: Is there a QNX equivalence of pivot_root?
+    // if (syscall(__NR_pivot_root, ".", ".") < 0) {
+    if (chroot(".") < 0) {
         fuse_log(FUSE_LOG_ERR, "pivot_root(., .): %m\n");
         exit(1);
     }
@@ -2967,12 +2997,15 @@ static void setup_mounts(const char *source)
         exit(1);
     }
 
-    if (mount("", ".", "", MS_SLAVE | MS_REC, NULL) < 0) {
+    // FIXME: no matches for MS_SLAVE, MS_REC
+    // if (mount("", ".", "", MS_SLAVE | MS_REC, NULL) < 0) {
+    if (mount("", ".", "", 0, NULL, 0) < 0) {
         fuse_log(FUSE_LOG_ERR, "mount(., MS_SLAVE | MS_REC): %m\n");
         exit(1);
     }
 
-    if (umount2(".", MNT_DETACH) < 0) {
+    // if (umount2(".", MNT_DETACH) < 0) {
+    if (umount(".", 0) < 0) {
         fuse_log(FUSE_LOG_ERR, "umount2(., MNT_DETACH): %m\n");
         exit(1);
     }
@@ -3038,9 +3071,11 @@ static void log_func(enum fuse_log_level level, const char *fmt, va_list ap)
     if (current_log_level == FUSE_LOG_DEBUG) {
         if (!use_syslog) {
             localfmt = g_strdup_printf("[%" PRId64 "] [ID: %08ld] %s",
-                                       get_clock(), syscall(__NR_gettid), fmt);
+                                    //    get_clock(), syscall(__NR_gettid), fmt);
+                                       get_clock(), gettid(), fmt);
         } else {
-            localfmt = g_strdup_printf("[ID: %08ld] %s", syscall(__NR_gettid),
+            // localfmt = g_strdup_printf("[ID: %08ld] %s", syscall(__NR_gettid),
+            localfmt = g_strdup_printf("[ID: %08ld] %s", gettid(),
                                        fmt);
         }
         fmt = localfmt;
@@ -3180,13 +3215,16 @@ static void setup_root(struct lo_data *lo, struct lo_inode *root)
     int fd, res;
     struct stat stat;
 
-    fd = open("/", O_PATH);
+    // FIXME: no match for O_PATH
+    // fd = open("/", O_PATH);
+    fd = open("/", O_RDONLY);
     if (fd == -1) {
         fuse_log(FUSE_LOG_ERR, "open(%s, O_PATH): %m\n", lo->source);
         exit(1);
     }
 
-    res = fstatat(fd, "", &stat, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    // res = fstatat(fd, "", &stat, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+    res = fstatat(fd, "", &stat, AT_EACCESS | AT_SYMLINK_NOFOLLOW);
     if (res == -1) {
         fuse_log(FUSE_LOG_ERR, "fstatat(%s): %m\n", lo->source);
         exit(1);

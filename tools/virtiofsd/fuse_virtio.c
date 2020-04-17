@@ -11,8 +11,8 @@
  * See the file COPYING.LIB
  */
 
-#include "qemu/osdep.h"
-#include "qemu/iov.h"
+#include "qvm/osdep.h"
+#include "qvm/iov.h"
 #include "qapi/error.h"
 #include "fuse_i.h"
 #include "standard-headers/linux/fuse.h"
@@ -22,18 +22,20 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <glib.h>
+#include "standard-headers/glib_types.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/eventfd.h>
+// #include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 #include "contrib/libvhost-user/libvhost-user.h"
+#include "standard-headers/linux/virtio_config.h"
 
 struct fv_VuDev;
 struct fv_QueueInfo {
@@ -226,7 +228,7 @@ int virtio_send_msg(struct fuse_session *se, struct fuse_chan *ch,
     assert(out->unique);
     assert(!req->reply_sent);
 
-    /* The 'in' part of the elem is to qemu */
+    /* The 'in' part of the elem is to qvm */
     unsigned int in_num = elem->in_num;
     struct iovec *in_sg = elem->in_sg;
     size_t in_len = iov_size(in_sg, in_num);
@@ -301,7 +303,7 @@ int virtio_send_data_iov(struct fuse_session *se, struct fuse_chan *ch,
 
     assert(!req->reply_sent);
 
-    /* The 'in' part of the elem is to qemu */
+    /* The 'in' part of the elem is to qvm */
     unsigned int in_num = elem->in_num;
     unsigned int bad_in_num = req->bad_in_num;
     struct iovec *in_sg = elem->in_sg;
@@ -465,6 +467,8 @@ err:
 
 static __thread bool clone_fs_called;
 
+// FIXME:
+#define CLONE_FS	0x00000200
 /* Process one FVRequest in a thread pool */
 static void fv_queue_worker(gpointer data, gpointer user_data)
 {
@@ -503,7 +507,7 @@ static void fv_queue_worker(gpointer data, gpointer user_data)
     req->ch.fd = -1;
     req->ch.qi = qi;
 
-    /* The 'out' part of the elem is from qemu */
+    /* The 'out' part of the elem is from qvm */
     unsigned int out_num = elem->out_num;
     unsigned int out_num_readable = out_num - req->bad_out_num;
     struct iovec *out_sg = elem->out_sg;
@@ -749,11 +753,12 @@ static void *fv_queue_thread(void *opaque)
         fuse_log(FUSE_LOG_DEBUG, "%s: Got queue event on Queue %d\n", __func__,
                  qi->qidx);
 
-        eventfd_t evalue;
-        if (eventfd_read(qi->kick_fd, &evalue)) {
-            fuse_log(FUSE_LOG_ERR, "Eventfd_read for queue: %m\n");
-            break;
-        }
+        // FIXME:
+        // eventfd_t evalue;
+        // if (eventfd_read(qi->kick_fd, &evalue)) {
+        //     fuse_log(FUSE_LOG_ERR, "Eventfd_read for queue: %m\n");
+        //     break;
+        // }
         /* Mutual exclusion with virtio_loop() */
         ret = pthread_rwlock_rdlock(&qi->virtio_dev->vu_dispatch_rwlock);
         assert(ret == 0); /* there is no possible error case */
@@ -762,9 +767,10 @@ static void *fv_queue_thread(void *opaque)
         unsigned int in_bytes, out_bytes;
         vu_queue_get_avail_bytes(dev, q, &in_bytes, &out_bytes, ~0, ~0);
 
-        fuse_log(FUSE_LOG_DEBUG,
-                 "%s: Queue %d gave evalue: %zx available: in: %u out: %u\n",
-                 __func__, qi->qidx, (size_t)evalue, in_bytes, out_bytes);
+        // FIXME:
+        // fuse_log(FUSE_LOG_DEBUG,
+        //          "%s: Queue %d gave evalue: %zx available: in: %u out: %u\n",
+        //          __func__, qi->qidx, (size_t)evalue, in_bytes, out_bytes);
 
         while (1) {
             unsigned int bad_in_num = 0, bad_out_num = 0;
@@ -798,11 +804,12 @@ static void fv_queue_cleanup_thread(struct fv_VuDev *vud, int qidx)
     assert(qidx < vud->nqueues);
     ourqi = vud->qi[qidx];
 
+    // FIXME:
     /* Kill the thread */
-    if (eventfd_write(ourqi->kill_fd, 1)) {
-        fuse_log(FUSE_LOG_ERR, "Eventfd_write for queue %d: %s\n",
-                 qidx, strerror(errno));
-    }
+    // if (eventfd_write(ourqi->kill_fd, 1)) {
+    //     fuse_log(FUSE_LOG_ERR, "Eventfd_write for queue %d: %s\n",
+    //              qidx, strerror(errno));
+    // }
     ret = pthread_join(ourqi->thread, NULL);
     if (ret) {
         fuse_log(FUSE_LOG_ERR, "%s: Failed to join thread idx %d err %d\n",
@@ -860,7 +867,8 @@ static void fv_queue_set_started(VuDev *dev, int qidx, bool started)
         ourqi = vud->qi[qidx];
         ourqi->kick_fd = dev->vq[qidx].kick_fd;
 
-        ourqi->kill_fd = eventfd(0, EFD_CLOEXEC | EFD_SEMAPHORE);
+        // FIXME:
+        // ourqi->kill_fd = eventfd(0, EFD_CLOEXEC | EFD_SEMAPHORE);
         assert(ourqi->kill_fd != -1);
         pthread_mutex_init(&ourqi->vq_lock, NULL);
 
@@ -973,7 +981,7 @@ static bool fv_socket_lock(struct fuse_session *se)
     g_autofree gchar *dir = NULL;
     Error *local_err = NULL;
 
-    dir = qemu_get_local_state_pathname("run/virtiofsd");
+    dir = qvm_get_local_state_pathname("run/virtiofsd");
 
     if (g_mkdir_with_parents(dir, S_IRWXU) < 0) {
         fuse_log(FUSE_LOG_ERR, "%s: Failed to create directory %s: %s",
@@ -985,7 +993,7 @@ static bool fv_socket_lock(struct fuse_session *se)
     strreplace(sk_name, '/', '.');
     pidfile = g_strdup_printf("%s/%s.pid", dir, sk_name);
 
-    if (!qemu_write_pidfile(pidfile, &local_err)) {
+    if (!qvm_write_pidfile(pidfile, &local_err)) {
         error_report_err(local_err);
         return false;
     }
@@ -1019,7 +1027,7 @@ static int fv_create_listen_socket(struct fuse_session *se)
     }
 
     /*
-     * Create the Unix socket to communicate with qemu
+     * Create the Unix socket to communicate with qvm
      * based on QEMU's vhost-user-bridge
      */
     unlink(se->vu_socket_path);

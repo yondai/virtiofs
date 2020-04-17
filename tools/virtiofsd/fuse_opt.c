@@ -9,7 +9,7 @@
  * See the file COPYING.LIB
  */
 
-#include "qemu/osdep.h"
+#include "qvm/osdep.h"
 #include "fuse_opt.h"
 #include "fuse_i.h"
 #include "fuse_misc.h"

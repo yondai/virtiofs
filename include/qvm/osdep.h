@@ -27,12 +27,12 @@
 #ifndef QEMU_OSDEP_H
 #define QEMU_OSDEP_H
 
-#include "config-host.h"
-#ifdef NEED_CPU_H
-#include "config-target.h"
-#else
-#include "exec/poison.h"
-#endif
+// #include "config-host.h"
+// #ifdef NEED_CPU_H
+// #include "config-target.h"
+// #else
+// #include "exec/poison.h"
+// #endif
 #ifdef __COVERITY__
 /* Coverity does not like the new _Float* types that are used by
  * recent glibc, and croaks on every single file that includes
@@ -48,7 +48,7 @@ typedef __float80 _Float64x;
 typedef __float128 _Float128;
 #endif
 
-#include "qemu/compiler.h"
+#include "compiler.h"
 
 /* Older versions of C++ don't get definitions of various macros from
  * stdlib.h unless we define these macros before first inclusion of
@@ -137,8 +137,8 @@ extern int daemon(int, int);
 #include "sysemu/os-posix.h"
 #endif
 
-#include "glib-compat.h"
-#include "qemu/typedefs.h"
+// #include "glib-compat.h"
+#include "typedefs.h"
 
 /*
  * For mingw, as of v6.0.0, the function implementing the assert macro is
@@ -171,9 +171,9 @@ extern int daemon(int, int);
  * submit patches to remove any side-effects inside an assertion, or
  * fixing error handling that should use Error instead of assert.
  */
-#ifdef NDEBUG
-#error building with NDEBUG is not supported
-#endif
+// #ifdef NDEBUG
+// #error building with NDEBUG is not supported
+// #endif
 #ifdef G_DISABLE_ASSERT
 #error building with G_DISABLE_ASSERT is not supported
 #endif
@@ -484,10 +484,10 @@ bool qemu_write_pidfile(const char *pidfile, Error **errp);
 int qemu_get_thread_id(void);
 
 #ifndef CONFIG_IOVEC
-struct iovec {
-    void *iov_base;
-    size_t iov_len;
-};
+// struct iovec {
+//     void *iov_base;
+//     size_t iov_len;
+// };
 /*
  * Use the same value as Linux for now.
  */

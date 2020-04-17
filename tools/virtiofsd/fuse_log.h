@@ -15,7 +15,7 @@
  */
 
 #include <stdarg.h>
-#include "qemu/compiler.h"
+#include "qvm/compiler.h"
 
 /**
  * Log severity level
